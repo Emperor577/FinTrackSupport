@@ -38,7 +38,7 @@ Send an email describing your issue, including:
 - Screenshots if possible
 
 **Support Email:**  
-`support@yourdomain.com` *(replace with your actual support email)*
+`kholmuhammadov@gmail.com` *(replace with your actual support email)*
 
 ---
 
