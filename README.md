@@ -1,95 +1,169 @@
-# FinTrack – Dead-simple finance for iPhone
+# FinTrack — marketing site + auth callback
 
-FinTrack is a minimalist personal finance tracker designed to make money management effortless on iPhone.  
-The app focuses on simplicity and speed, helping you track your financial activity without unnecessary complexity.
+Static site for [FinTrack](https://apps.apple.com/app/idTBD), a personal
+finance iPhone app. The site does two things:
 
-With FinTrack you can quickly record and review:
+1. Acts as the landing page (App Store link, privacy policy, support contact).
+2. Receives Supabase email-confirmation deep links at `/auth/callback` and
+   forwards them to the iOS app via the `fintrack://` URL scheme.
 
-- **Expenses**
-- **Income**
-- **Borrowing**
-- **Lending**
-
-The interface is intentionally clean so you can log transactions in seconds and clearly understand where your money is going.
-
----
-
-## 📱 Features
-
-- **Fast transaction logging** – record financial activity in seconds  
-- **Minimalist design** – distraction-free interface  
-- **Clear financial overview** – see income, expenses, and balances at a glance  
-- **Borrow & lend tracking** – keep track of money you owe or are owed  
-- **Secure cloud sync** – optional syncing across devices
+> The site never talks to Supabase directly. Supabase has already verified
+> the email by the time the user lands here — the callback page simply
+> hands the `code` (or token fragment) off to the iOS app.
 
 ---
 
-# 🛠 Support
+## Stack
 
-If you experience any issues or need assistance, please follow the steps below.
+- Next.js 15 (App Router) + TypeScript
+- Tailwind CSS 3
+- Static export (`output: "export"`) — no server runtime
+- Deploys to Vercel, Netlify, Cloudflare Pages, or any static host
 
-### 📩 Contact Support
+## Run locally
 
-Send an email describing your issue, including:
+```bash
+npm install
+npm run dev
+# → http://localhost:3000
+```
 
-- Your device model
-- iOS version
-- A description of the problem
-- Screenshots if possible
+## Build for production
 
-**Support Email:**  
-`kholmuhammadov@gmail.com` *(replace with your actual support email)*
+```bash
+npm run build
+# → static files in ./out
+```
 
----
-
-### 🐞 Report a Bug
-
-If you found a bug:
-
-1. Open a **GitHub Issue** in this repository.
-2. Provide a clear description of the problem.
-3. Include steps to reproduce the issue.
-4. Attach screenshots if relevant.
-
-This helps us resolve issues faster.
+Deploy the contents of `out/` to any static host. On Vercel/Netlify, just
+point at this repo — the platforms auto-detect Next.js and run
+`next build` for you.
 
 ---
 
-# 🔒 Privacy & Data Security
+## Pages
 
-FinTrack respects your privacy.
-
-The app uses **Supabase** for secure cloud synchronization and backend services.  
-Your data is stored securely and is only used to provide app functionality.
-
-FinTrack **does not sell or share your personal financial data** with third parties.
-
-For more details, please refer to the app's Privacy Policy.
+| Route             | Purpose                                                    |
+| ----------------- | ---------------------------------------------------------- |
+| `/`               | Landing page: tagline, App Store badge, feature bullets    |
+| `/auth/callback`  | Supabase email-confirmation handoff to the iOS app         |
+| `/privacy`        | Privacy policy (linked from the App Store listing)         |
+| `/support`        | FAQ + support email                                        |
 
 ---
 
-# ❓ FAQ
+## The `/auth/callback` page
 
-### Is my data secure?
+When a user taps the verification link in their Supabase confirmation
+email, Supabase verifies the token server-side and redirects to:
 
-Yes. FinTrack uses secure cloud infrastructure powered by **Supabase**. Data is transmitted using encrypted connections.
+```
+https://fintrack.app/auth/callback?code=<uuid>
+```
 
-### How do I reset my PIN?
+or, for the implicit flow, with a URL fragment:
 
-If you forget your PIN, you can reset it from the **Settings** screen inside the app.
+```
+https://fintrack.app/auth/callback#access_token=...&refresh_token=...
+```
 
-### Does FinTrack require an internet connection?
+The page:
 
-No. You can record transactions offline. If cloud sync is enabled, data will sync once you reconnect.
+1. Parses `?code=...` first, then falls back to the `#access_token` /
+   `#refresh_token` fragment.
+2. On iOS, auto-redirects to
+   `fintrack://auth-callback?code=...` (or `#access_token=...&refresh_token=...`)
+   after a 1 s delay.
+3. Shows **Open FinTrack** + **Download on the App Store** buttons as a
+   fallback after ~1.5 s.
+4. On non-iOS devices, shows an "iOS only" message and hides the Open
+   button.
+5. If the link is malformed (no `code`, no token fragment), shows a clear
+   error pointing to support.
 
-### Can I export my data?
+No external requests are made — everything is client-side string parsing
+plus a `window.location.href` redirect to the custom scheme.
 
-Export features may be added in future updates. Current versions focus on fast and simple tracking.
+The deep-link scheme `fintrack://` and host `auth-callback` are already
+registered in the iOS app's `Info.plist` and handled in
+`FinTrackApp.onOpenURL`, which calls `supabase.auth.session(from: url)`
+to complete sign-in inside the app.
 
 ---
 
-# 🍎 Availability
+## Supabase Dashboard configuration
 
-FinTrack is available on the **Apple App Store**.
+In **Authentication → URL Configuration** in your Supabase project:
 
-Download it on your iPhone to start tracking your finances in a simple and efficient way.
+- **Site URL** — set to:
+  ```
+  https://fintrack.app
+  ```
+  (replace with your real production domain)
+
+- **Redirect URLs** — allow-list each environment you use:
+  ```
+  https://fintrack.app/auth/callback
+  http://localhost:3000/auth/callback
+  ```
+  Add a preview-deploy URL too if you use Vercel previews (e.g.
+  `https://*.vercel.app/auth/callback`).
+
+In **Authentication → Email Templates → Confirm signup**, make sure the
+`{{ .ConfirmationURL }}` placeholder is used. Supabase will substitute it
+with a URL pointing at your Site URL + `/auth/callback?code=...`.
+
+> Heads up: Supabase's email templates default to a `?token_hash=...&type=...`
+> link that hits Supabase first, which then redirects to your Site URL.
+> If you've customized the template to point straight at
+> `{{ .SiteURL }}/auth/callback?token_hash={{ .TokenHash }}&type=signup`,
+> the callback page won't know how to handle that — adjust the template
+> back to `{{ .ConfirmationURL }}` so Supabase issues the `?code=...`
+> redirect we expect.
+
+---
+
+## Replacing the placeholders
+
+Before launch:
+
+- [ ] **App Store URL** — update `APP_STORE_URL` in
+      `components/AppStoreBadge.tsx` with your real App Store link.
+- [ ] **Hero mockup** — replace `public/app-mockup.svg` with a real
+      App Store screenshot (e.g. 1170×2532 PNG, scaled down).
+- [ ] **Domain** — search-replace `fintrack.app` if you use a different
+      domain (e.g. `getfintrack.com`). Touches `app/layout.tsx`'s
+      `metadataBase` and this README.
+- [ ] **Privacy policy** — `PRIVACY.md` and `/privacy` mirror each
+      other. Have a lawyer review before App Store submission.
+- [ ] **Support email** — `SUPPORT_EMAIL` in `components/Footer.tsx`.
+      Currently `kholmuhammadov@gmail.com`.
+
+---
+
+## Acceptance checklist
+
+- [x] `npm run dev` serves the site locally.
+- [x] `npm run build` produces a static `out/` directory.
+- [x] `/auth/callback?code=test123` on iOS redirects to
+      `fintrack://auth-callback?code=test123`.
+- [x] Same URL on desktop shows the "iOS only" message.
+- [x] All pages except `/auth/callback` render without JavaScript.
+- [x] Auto dark mode via `prefers-color-scheme`.
+
+---
+
+## Future: Universal Links (recommended once live)
+
+The current `fintrack://` custom scheme triggers an "Open in app?" prompt
+on iOS. Switching to Universal Links removes that prompt and makes the
+link open the app silently. It requires:
+
+1. An `apple-app-site-association` JSON file served from
+   `https://fintrack.app/.well-known/apple-app-site-association`.
+2. The `applinks:fintrack.app` Associated Domain entitlement added to
+   the iOS app.
+3. A `.onContinueUserActivity(NSUserActivityTypeBrowsingWeb)` handler in
+   `FinTrackApp` that extracts the `code` query parameter.
+
+Ship the current version first, then upgrade.

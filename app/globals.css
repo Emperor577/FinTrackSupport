@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #fafaf9;
+  --bg-elev: #ffffff;
+  --fg: #18181b;
+  --fg-muted: #52525b;
+  --border: #e7e5e4;
+  --brand: #007AFF;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --bg-elev: #141416;
+    --fg: #f4f4f5;
+    --fg-muted: #a1a1aa;
+    --border: #27272a;
+    --brand: #0A84FF;
+  }
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+a { color: inherit; }
+
+.muted { color: var(--fg-muted); }
+.brand { color: var(--brand); }
+.surface { background: var(--bg-elev); }
+.hairline { border-color: var(--border); }
+
+/* gentle fade for callback transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+.fade-in { animation: fadeIn 250ms ease-out both; }
+
+/* spinner */
+.spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
